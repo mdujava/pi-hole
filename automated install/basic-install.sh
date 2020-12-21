@@ -1039,10 +1039,22 @@ valid_ip6() {
     local v6cidr="(\\/([1-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8])){0,1}"
     # optional port number starting '#' with range of 1-65536
     local portelem="(#([1-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]{2}|9[0-8][0-9]|99[0-9]|[1-8][0-9]{3}|9[0-8][0-9]{2}|99[0-8][0-9]|999[0-9]|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-6]))?"
-    # build a full regex string from the above parts
-    local regex="^(((${ipv6elem}))*((:${ipv6elem}))*::((${ipv6elem}))*((:${ipv6elem}))*|((${ipv6elem}))((:${ipv6elem})){7})${v6cidr}${portelem}$"
+    # build a full regex string for ipv6 containing all 7 ':' from the above parts
+    local regex="^(${ipv6elem}:){7}(${ipv6elem})${v6cidr}${portelem}$"
 
-    [[ ${ip} =~ ${regex} ]]
+    local check_ip="$ip"
+
+    # prepend or append 0 to the :: if it's at start or end of ip part
+    check_ip="$(sed -e 's/^::/0::/' -e 's/::\//::0\//' -e 's/::#/::0#/' -e 's/::$/::0/' <<<"$check_ip")"
+
+    # expand :: to num :0: to uncompress all parts to 0
+    local num="$((7-$(awk -F':' '{print NF-1}' <<<"$ip")))"
+    for _ in $(seq $num); do
+        check_ip="${check_ip//::/:0::}"
+    done
+    check_ip="${check_ip//::/:0:}"
+
+    [[ ${check_ip} =~ ${regex} ]]
 
     stat=$?
     # Return the exit code
